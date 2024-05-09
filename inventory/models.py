@@ -114,7 +114,7 @@ class Attribute(models.Model):
         description (TextField): describes the attribute
     """
 
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=200)
     description = models.TextField(null=True)
 
 
