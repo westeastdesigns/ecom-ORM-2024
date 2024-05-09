@@ -144,18 +144,18 @@ class ProductLine(models.Model):
         order (IntegerField): order number of product line
         weight (FloatField): weight of product
         product (ForeignKey): references Product table, protects on deletion
-        attribute_value (ManyToManyField): M2M relationship with AttributeValue table
+        attribute_values (ManyToManyField): M2M relationship with AttributeValue table
     """
 
-    price = models.DecimalField()
+    price = models.DecimalField(decimal_places=2, max_digits=5)
     sku = models.UUIDField(default=uuid.uuid4)
     stock_qty = models.IntegerField(default=0)
     is_active = models.BooleanField(default=False)
     order = models.IntegerField()
     weight = models.FloatField()
     product = models.ForeignKey(Product, on_delete=models.PROTECT)
-    attribute_value = models.ManyToManyField(
-        AttributeValue, related_name="attribute_value"
+    attribute_values = models.ManyToManyField(
+        AttributeValue, related_name="attribute_values"
     )
 
 
