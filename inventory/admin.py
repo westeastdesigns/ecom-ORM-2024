@@ -1,3 +1,4 @@
+import nested_admin
 from django.contrib import admin
 
 from .models import (
@@ -11,22 +12,21 @@ from .models import (
     SeasonalEvent,
 )
 
+admin.site.register(ProductLine)
 
-class ProductImageInline(admin.StackedInline):
+
+class ProductImageInline(nested_admin.NestedStackedInline):
     model = ProductImage
     extra = 1
 
 
-admin.site.register(ProductLine)
-
-
-class ProductLineInline(admin.StackedInline):
+class ProductLineInline(nested_admin.NestedStackedInline):
     model = ProductLine
     inlines = [ProductImageInline]
     extra = 1
 
 
-class ProductAdmin(admin.ModelAdmin):
+class ProductAdmin(nested_admin.NestedModelAdmin):
     inlines = [ProductLineInline]
 
     list_display = ("name", "category", "stock_status", "is_active")
