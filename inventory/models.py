@@ -6,6 +6,7 @@ UUID version 4 is used in the Product Line model.
 import uuid
 
 from django.db import models
+from django.utils.text import slugify
 
 
 class Category(models.Model):
@@ -18,16 +19,40 @@ class Category(models.Model):
         is_active (BooleanField): whether the category is active
         parent(ForeignKey): references self, allowing subcategories. Categories are
             protected from deletion if they have any parent subcategories.
+            null=True allows top-level parents to be created in the database.
+            blank=True tells Django that categories can be made without parents.
     """
 
-    name = models.CharField(max_length=100, unique=True)
-    slug = models.SlugField(unique=True)
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        verbose_name="Inventory Category",
+        help_text="Enter a category...",
+    )
+    slug = models.SlugField(unique=True, blank=True)
     is_active = models.BooleanField(default=False)
-    parent = models.ForeignKey("self", on_delete=models.PROTECT)
+    parent = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Inventory Category"
+        # sets the plural version of this class. default just adds an s to the end.
+        verbose_name_plural = "Categories"
+
+    # save method overrides the default django model save behavior
+    def save(self, *args, **kwargs):
+        # if a slug doesn't exist, create one (using slugify from django.utils.text)
+        if not self.slug:
+            self.slug = slugify(self.name)
+        # call save method of super class, retaining existing behavior but add slugify
+        super().save(*args, **kwargs)
+
+    # dunderstring returns the name of the category
+    def __str__(self):
+        return self.name
 
 
-class SeasonalEvents(models.Model):
-    """SeasonalEvents table, manual entry
+class SeasonalEvent(models.Model):
+    """SeasonalEvent table, manual entry
 
     Args:
         id (BigAutoField): auto-generated primary key
@@ -41,6 +66,10 @@ class SeasonalEvents(models.Model):
     end_date = models.DateTimeField()
     name = models.CharField(max_length=100, unique=True)
 
+    # dunderstring returns the name of the seasonal event
+    def __str__(self):
+        return self.name
+
 
 class ProductType(models.Model):
     """ProductType is self-referencing so it can have subcategories. Has a Many to Many
@@ -48,11 +77,17 @@ class ProductType(models.Model):
 
     Args:
         name (CharField): type of product
-        parent (ForeignKey): references self, deletes referenced data on deletion
+        parent (ForeignKey): references self, protects referenced data on deletion
+            null=True allows top-level parents to be created in the database.
+            blank=True tells Django that product types can be made without parents.
     """
 
     name = models.CharField(max_length=100)
-    parent = models.ForeignKey("self", on_delete=models.CASCADE)
+    parent = models.ForeignKey("self", on_delete=models.PROTECT, null=True, blank=True)
+
+    # dunderstring returns the name of the product type
+    def __str__(self):
+        return self.name
 
 
 class Product(models.Model):
@@ -69,7 +104,8 @@ class Product(models.Model):
         is_active (BooleanField): Product is active or not
         stock_status (CharField): options are "IS" | "OOS" | "BO"
         category (ForeignKey): refrences Category table, set to null on deletion
-        seasonal_event (ForeignKey): references SeasonalEvents table, null on deletion
+        seasonal_event (ForeignKey): references SeasonalEvent table, null on deletion
+            null=True allows db to accept null values, blank=True allows this in django
         product_type (ManyToManyField): has a M2M relationship with ProductType table
     """
 
@@ -85,13 +121,13 @@ class Product(models.Model):
 
     pid = models.CharField(max_length=255)
     name = models.CharField(max_length=100, unique=True)
-    slug = models.SlugField(unique=True)
+    slug = models.SlugField(unique=True, blank=True)
     description = models.TextField(null=True)
     is_digital = models.BooleanField(default=False)
     # auto_now sets it to whenever it is edited.
     # auto_now_add stores creation date and locks it
     created_at = models.DateTimeField(auto_now_add=True, editable=False)
-    updated_at = models.DateTimeField(auto_now=True, editable=False)
+    updated_at = models.DateTimeField(auto_now=True)
     is_active = models.BooleanField(default=False)
     stock_status = models.CharField(
         max_length=3,
@@ -100,9 +136,21 @@ class Product(models.Model):
     )
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True)
     seasonal_event = models.ForeignKey(
-        SeasonalEvents, on_delete=models.SET_NULL, null=True
+        SeasonalEvent, on_delete=models.SET_NULL, null=True, blank=True
     )
     product_type = models.ManyToManyField(ProductType, related_name="product_type")
+
+    # save method overrides the default django model save behavior
+    def save(self, *args, **kwargs):
+        # if a slug doesn't exist, create one (using slugify from django.utils.text)
+        if not self.slug:
+            self.slug = slugify(self.name)
+        # call save method of super class, retaining existing behavior but add slugify
+        super().save(*args, **kwargs)
+
+    # dunderstring returns the name of the product
+    def __str__(self):
+        return self.name
 
 
 class Attribute(models.Model):
@@ -116,6 +164,9 @@ class Attribute(models.Model):
 
     name = models.CharField(max_length=200)
     description = models.TextField(null=True)
+
+    def __str__(self):
+        return self.name
 
 
 class AttributeValue(models.Model):
@@ -132,13 +183,17 @@ class AttributeValue(models.Model):
     attribute_value = models.CharField(max_length=100)
     attribute = models.ForeignKey(Attribute, on_delete=models.CASCADE)
 
+    # dunderstring returns the name and value of the attribute
+    def __str__(self):
+        return f"{self.attribute.name}: {self.attribute_value}"
+
 
 class ProductLine(models.Model):
     """class for Product Line table
 
     Args:
         price (DecimalField): Product price
-        sku (UUIDField): version 4 uuid for product
+        sku (UUIDField): version 4 uuid for product. https://www.uuidgenerator.net
         stock_qty (IntegerField): how many of the products are in stock
         is_active (BooleanField): if the product is active
         order (IntegerField): order number of product line
@@ -158,6 +213,10 @@ class ProductLine(models.Model):
         AttributeValue, related_name="attribute_values"
     )
 
+    # dunderstring returns the name and order number of the attribute
+    def __str__(self):
+        return f"{self.product.name}: {self.order}"
+
 
 class ProductImage(models.Model):
     """class for Product Image table, stores image url
@@ -166,12 +225,11 @@ class ProductImage(models.Model):
         name (CharField): title of product image
         alternative_text (CharField): alt_text for product image
         url (ImageField): url of image
-        order (IntegerField): ProductImage data order
-        product_line (ForiegnKey): references ProductLine table, cascades on deletion
+        order (IntegerField): ProductImage data order for frontend listing heirarchy
+        product_line (ForeignKey): references ProductLine table, cascades on deletion
     """
 
-    name = models.CharField(max_length=100)
-    alternative_text = models.CharField(max_length=100)
+    alternative_text = models.CharField(max_length=200)
     url = models.ImageField()
     order = models.IntegerField()
     product_line = models.ForeignKey(ProductLine, on_delete=models.CASCADE)
